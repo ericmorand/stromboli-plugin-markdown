@@ -1,0 +1,21 @@
+{
+  "name": "stromboli-plugin-markdown",
+  "version": "0.1.0",
+  "description": "",
+  "main": "src/plugin.js",
+  "scripts": {
+    "test": "tap test/*.js --cov"
+  },
+  "author": "Eric MORAND",
+  "dependencies": {
+    "fs-extra": "^0.30.0",
+    "marked": "^0.3.6",
+    "promise": "^7.1.1"
+  },
+  "repository": "ericmorand/stromboli-plugin-markdown",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "stromboli": "^0.4.0",
+    "tap": "^7.1.2"
+  }
+}
