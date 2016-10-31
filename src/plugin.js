@@ -1,8 +1,8 @@
 const fs = require('fs-extra');
 const path = require('path');
+const url = require('url');
 
 const Promise = require('promise');
-const marked = require('marked');
 
 class Plugin {
   /**
@@ -12,38 +12,6 @@ class Plugin {
   constructor(config) {
     this.config = config;
     this.markdown = require('marked');
-
-    /**
-     *
-     * @param file
-     * @param renderResult {StromboliRenderResult}
-     * @returns {String}
-     * @private
-     */
-    this._compileFile = function (file, renderResult) {
-      var that = this;
-      var readData = fs.readFileSync(file);
-      var result = readData.toString();
-
-      var includePattern = /^(?:\\include)\s"((?:.+)\.(?:.*))"/gm; // @see https://regex101.com/r/8lc5gV/4
-      var matches = null;
-
-      renderResult.addDependency(file);
-
-      while (matches = includePattern.exec(result)) {
-        var match = matches[0];
-        var includedFile = path.resolve(path.join(path.dirname(file), matches[1]));
-
-        if (renderResult.getDependencies().has(includedFile)) {
-          throw new Error('Circular include ' + match, file);
-        }
-        else {
-          result = result.replace(match, that._compileFile(includedFile, renderResult));
-        }
-      }
-
-      return result;
-    };
   }
 
   /**
@@ -55,27 +23,97 @@ class Plugin {
   render(file, renderResult) {
     var that = this;
 
-    try {
-      var data = that._compileFile(file, renderResult);
+    return new Promise(function (fulfill, reject) {
+      try {
+        var result = that.renderFile(file, renderResult);
+        var ext = path.extname(file);
 
-      var marked = Promise.denodeify(that.markdown);
+        renderResult.addBinary(path.basename(file, ext) + '.html', result);
 
-      return marked(data).then(
-        function (binary) {
-          renderResult.addBinary(path.basename(file), binary);
+        fulfill(renderResult);
+      }
+      catch (err) {
+        var error = {
+          file: file,
+          error: err.message
+        };
 
-          return renderResult;
+        reject(error);
+      }
+    });
+  }
+
+  _renderFile(file, renderResult, knownDependencies) {
+    var that = this;
+    var markdown = that.markdown;
+    var readData = fs.readFileSync(file);
+    var renderer = new markdown.Renderer();
+
+    // console.log(knownDependencies);
+
+    renderResult.addDependency(file);
+
+    if (!knownDependencies.has(file)) {
+      knownDependencies.set(file, new Set());
+    }
+
+    var fileKnownDependencies = knownDependencies.get(file);
+
+    renderer.link = function (href, title, text) {
+      var result = null;
+      var linkUrl = url.parse(href);
+
+      if (linkUrl.slashes == null) {
+        var includedFile = path.resolve(path.join(path.dirname(file), href));
+
+        try {
+          fs.statSync(includedFile);
         }
-      );
-    }
-    catch (err) {
-      var error = {
-        file: err.file || file,
-        error: err.message
-      };
+        catch (err) {
+          includedFile = null;
+        }
 
-      return Promise.reject(error);
-    }
+        if (includedFile) {
+          if (knownDependencies.has(includedFile)) {
+            var includedFileKnownDependencies = knownDependencies.get(includedFile);
+
+            if (includedFileKnownDependencies.has(file)) {
+              throw new Error('Circular include ' + href);
+            }
+          }
+
+          fileKnownDependencies.add(includedFile);
+
+          var renderFileResult = that._renderFile(includedFile, renderResult, knownDependencies);
+
+          result = '';
+
+          if (title) {
+            result = '<a id="' + title + '">' + text + '</a>';
+          }
+          else {
+            result = text;
+          }
+
+          result += renderFileResult;
+        }
+      }
+
+      if (!result) {
+        result = markdown.Renderer.prototype.link.call(markdown, href, title, text);
+      }
+
+      return result;
+    };
+
+    return that.markdown(readData.toString(), {renderer: renderer});
+  }
+
+  renderFile(file, renderResult) {
+    var that = this;
+    var knownDependencies = new Map();
+
+    return that._renderFile(file, renderResult, knownDependencies);
   }
 }
 

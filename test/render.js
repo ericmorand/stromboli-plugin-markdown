@@ -11,31 +11,16 @@ test('render', function (t) {
 
   var renderResult = new RenderResult();
 
-  return plugin.render(path.resolve('test/render/valid/index.md'), renderResult).then(
+  return plugin.render(path.resolve('test/render/valid/README.md'), renderResult).then(
     function(renderResult) {
       t.equal(renderResult.getDependencies().size, 3);
       t.equal(renderResult.getBinaries().length, 1);
-      t.equal(renderResult.getBinaries()[0].name, 'index.md');
-      t.equal(renderResult.getBinaries()[0].data, '<p><code>sub/include.md</code>\n<code>include.md</code></p>\n<p><code>index.md</code></p>\n');
+      t.equal(renderResult.getBinaries()[0].name, 'README.html');
+      t.equal(renderResult.getBinaries()[0].data, '<p><a id="include">Include</a><p>Include<p><code>sub/include</code></p>\n</p>\n<p><code>include</code></p>\n</p>\n<p><code>index</code></p>\n');
 
     },
     function(err) {
       t.fail(err);
-    }
-  );
-});
-
-test('render with error', function (t) {
-  t.plan(1);
-
-  var renderResult = new RenderResult();
-
-  return plugin.render(path.resolve('test/render/error/index.md'), renderResult).then(
-    function(renderResult) {
-      t.fail();
-    },
-    function(err) {
-      t.pass(err);
     }
   );
 });
@@ -45,7 +30,7 @@ test('render with circular', function (t) {
 
   var renderResult = new RenderResult();
 
-  return plugin.render(path.resolve('test/render/circular/index.md'), renderResult).then(
+  return plugin.render(path.resolve('test/render/circular/README.md'), renderResult).then(
     function(renderResult) {
       t.fail();
     },
